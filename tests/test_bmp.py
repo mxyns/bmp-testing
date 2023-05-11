@@ -1,12 +1,10 @@
 import unittest
+
 import pyshark
 
+import tests.common as common
 from bmp import bmp
 from bmp.bmp import BmpPacket
-import tests.common as common
-
-TESTDATA_FILENAME = "/home/taayoma5/frr-ribout-testing-20230511_1048.pcap"
-TSHARK_PATH = "/home/taayoma5/wireshark/build/run/tshark"
 
 
 class BMP(unittest.TestCase):
@@ -20,8 +18,9 @@ class BMP(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.file_path = TESTDATA_FILENAME
-        cls.pcap = pyshark.FileCapture(TESTDATA_FILENAME, tshark_path=TSHARK_PATH)
+        cls.file_path = common.PCAP_PATH
+        cls.pcap = pyshark.FileCapture(common.PCAP_PATH, tshark_path=common.TSHARK_PATH)
+        print(f"Running TShark {cls.pcap._get_tshark_version()} from {cls.pcap._get_tshark_path()}")
         cls.bmp = list()
 
         seq = 0
@@ -32,12 +31,16 @@ class BMP(unittest.TestCase):
                         BmpPacket(capture_sequence=seq, frame_sequence=frame_seq, frame=frame_id, packet=packet))
                     seq += 1
 
+        print("=== SETUP LOGS ====")
         print(f"BMP Packet count: {seq + 1}")
         # this is disgustingly inefficient
         types: dict[bmp.MessageType, int] = {
             msg_type.name: len(list(filter(lambda bmp_packet: int(bmp_packet.packet.type) == msg_type, cls.bmp))) for
             msg_type in bmp.MessageType}
         print(types)
+        print("=== SETUP LOGS ====")
+
+        print("=== TEST LOGS ====")
 
     # ensure that preprocessing didn't duplicate packets
     def test_indices(self) -> None:
@@ -170,7 +173,7 @@ class BMP(unittest.TestCase):
     # ran at the end of the test suite
     @classmethod
     def tearDownClass(cls) -> None:
-        pass
+        print("==== TEST LOGS ====")
 
 
 if __name__ == '__main__':
