@@ -1,9 +1,9 @@
 import unittest
-
 import pyshark
 
 from bmp import bmp
 from bmp.bmp import BmpPacket
+import tests.common as common
 
 TESTDATA_FILENAME = "/home/taayoma5/frr-ribout-testing-20230511_1048.pcap"
 TSHARK_PATH = "/home/taayoma5/wireshark/build/run/tshark"
@@ -13,6 +13,10 @@ class BMP(unittest.TestCase):
     file_path: str = None
     pcap: pyshark.FileCapture = None
     bmp: list[BmpPacket] = None
+
+    # print test name before running each
+    def setUp(self) -> None:
+        common.print_test_header(self)
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -36,7 +40,7 @@ class BMP(unittest.TestCase):
         print(types)
 
     # ensure that preprocessing didn't duplicate packets
-    def test_indices(self):
+    def test_indices(self) -> None:
         # check if list is going from 0 to len(lst) monotonically, incr of 1
         def _assert_monotone(lst: list):
             assert len(set(lst)) == len(lst)
@@ -46,7 +50,7 @@ class BMP(unittest.TestCase):
         _assert_monotone(capture_sequences)
 
     # ensure that the bmp version is the same for the same sessions
-    def test_version(self):
+    def test_version(self) -> None:
 
         fail = False
         sessions = dict()
@@ -67,7 +71,7 @@ class BMP(unittest.TestCase):
         assert not fail
 
     # summarize peer up/down state and count ignored messages (received before peer up / after peer down)
-    def test_peerup(self):
+    def test_peerup(self) -> None:
 
         # peer stores
         # peer ids as key are tuple of (IP, RD, Type)
@@ -135,7 +139,7 @@ class BMP(unittest.TestCase):
         print(vrfs)
 
     # ensure that the peer type is never 0 when the peer RD is not zero and vice-versa
-    def test_peer_type(self):
+    def test_peer_type(self) -> None:
 
         fail = False
         for packet in self.bmp:
@@ -159,7 +163,13 @@ class BMP(unittest.TestCase):
 
     # TODO summary of received message for each type of monitoring (in - loc - out) with prefix and peer address
 
+    # print test name after running each
     def tearDown(self) -> None:
+        common.print_test_header(self)
+
+    # ran at the end of the test suite
+    @classmethod
+    def tearDownClass(cls) -> None:
         pass
 
 
