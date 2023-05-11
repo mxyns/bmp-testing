@@ -33,7 +33,7 @@ class BMP(unittest.TestCase):
                     seq += 1
 
         print("=== SETUP LOGS ====")
-        print(f"BMP Packet count: {seq + 1}")
+        print(f"BMP Packet count: {seq}")
         # this is disgustingly inefficient
         types: dict[bmp.MessageType, int] = {
             msg_type.name: len(list(filter(lambda bmp_packet: int(bmp_packet.packet.type) == msg_type, cls.bmp))) for
