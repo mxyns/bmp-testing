@@ -5,11 +5,13 @@ Collection of Python tests to run on a .pcap which checks aspects of a BMP imple
 ## Supported tests
 
 ### Assert tests
+
 - [x] Ensure pre-processing was safe : `test_indices`
 - [x] Version is always the same a session : `test_version`
 - [x] Ensure correct Peer Type and Peer Distinguisher : `test_peer_type`
 
 ### Informative tests
+
 - [x] Summarize peer states, count duplicates : `test_peerup`
 - [ ] Summarize updates and withdraws for each monitoring type and prefix
 - [ ] (Final RIB state for each peer?)
@@ -31,11 +33,12 @@ to run the Python `unittest` module with user arguments
 
 ### Arguments
 
-| argument            | type       | description                  | example                                                |
-|---------------------|------------|------------------------------|--------------------------------------------------------|
-| pcap                | positional | specify .pcap input file     | `python run_tests.py /path/to/pcap`                    |
-| `-t`<br/>`--tshark` | optional   | specify tshark executable    | `python run_tests.py /path/to/pcap -t /path/to/tshark` |
-| `--`                |            | pass arguments to `unittest` | `python run_tests.py <args> -- -k <expr>`              |
+| argument            | type             | description                  | example                                               |
+|---------------------|------------------|------------------------------|-------------------------------------------------------|
+| pcap                | positional, path | specify .pcap input file     | `python run_tests.py /path/to/pcap`                   |
+| `-t`<br/>`--tshark` | optional, path   | specify tshark executable    | `python run_tests.py -t /path/to/tshark /path/to/pcap |
+| `-p`<br/>`--port`   | optional, int    | specify bmp port for tshark  | `python run_tests.py -p 1790 /path/to/pcap`           |
+| `--`                |                  | pass arguments to `unittest` | `python run_tests.py <args> -- -k <expr>`             |
 
 ### Subset of tests
 

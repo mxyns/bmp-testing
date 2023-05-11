@@ -19,7 +19,8 @@ class BMP(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.file_path = common.PCAP_PATH
-        cls.pcap = pyshark.FileCapture(common.PCAP_PATH, tshark_path=common.TSHARK_PATH)
+        cls.pcap = pyshark.FileCapture(common.PCAP_PATH, tshark_path=common.TSHARK_PATH,
+                                       decode_as={f"tcp.port=={common.BMP_PORT}": "bmp"})
         print(f"Running TShark {cls.pcap._get_tshark_version()} from {cls.pcap._get_tshark_path()}")
         cls.bmp = list()
 
