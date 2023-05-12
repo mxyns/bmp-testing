@@ -116,8 +116,8 @@ class BMP(unittest.TestCase):
             # if a state message this is a new peer state
             packet_type = packet.type
 
-            # ignore initiation messages, not per-peer header
-            if packet_type == bmp.MessageType.Initiation:
+            # ignore initiation messages, has no per-peer header
+            if packet_type in [bmp.MessageType.Initiation, bmp.MessageType.Termination]:
                 continue
 
             peer_type = bmp.PeerType(int(packet.peer_type))
