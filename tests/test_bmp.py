@@ -31,7 +31,8 @@ class BMP(unittest.TestCase):
             if (packets := frame.get_multiple_layers("bmp")) is not None and len(packets) > 0:
                 for frame_seq, packet in enumerate(packets):
                     cls.bmp.append(
-                        BmpPacket(capture_sequence=seq, frame_sequence=frame_seq, frame=frame_id, packet=packet))
+                        BmpPacket(capture_sequence=seq, frame=frame_id, frame_sequence=frame_seq,
+                                  frame_bmp_count=len(packets), packet=packet))
                     seq += 1
 
         print("=== SETUP LOGS ====")
@@ -129,7 +130,7 @@ class BMP(unittest.TestCase):
             if packet_type in [bmp.MessageType.PeerUp, bmp.MessageType.PeerDown]:
                 if peer_state == packet_type:
                     _incr_stat(peer, f"{packet_type.name}_duplicate")
-                    print(f"peer {peer_id} duplicate state {peer_state}")
+                    print(f"peer {peer_id} duplicate state {peer_state} {packet.location_str()}")
                 else:
                     peer["state_msgs"].append(packet.capture_sequence)
                     peer["state"] = packet_type
@@ -169,8 +170,7 @@ class BMP(unittest.TestCase):
             need_rd = int(packet.peer_type) in [bmp.PeerType.RDInstance, bmp.PeerType.LocalInstance]
             has_rd = packet.peer_distinguisher != "00:00:00:00:00:00:00:00"
             if (has_rd and not can_rd) or (need_rd and not has_rd):
-                print(f"Packet {packet.capture_sequence} in frame {packet.frame + 1} at "
-                      f"{packet.frame_sequence}/{len(self.pcap[packet.frame].get_multiple_layers('bmp'))} "
+                print(f"Packet {packet.capture_sequence} {packet.location_str()}"
                       f"has invalid type / rd combination")
                 print(f"Message type: {packet.type}, "
                       f"peer type: {packet.packet.peer_type}. "

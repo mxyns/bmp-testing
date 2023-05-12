@@ -32,10 +32,11 @@ class PeerType(IntEnum):
 
 class BmpPacket:
 
-    def __init__(self, capture_sequence: int, frame_sequence: int, frame: int, packet: XmlLayer):
+    def __init__(self, capture_sequence: int, frame: int, frame_sequence: int, frame_bmp_count: int, packet: XmlLayer):
         self.capture_sequence = capture_sequence
-        self.frame_sequence = frame_sequence
         self.frame = frame
+        self.frame_sequence = frame_sequence
+        self.frame_bmp_count = frame_bmp_count
         self.packet = packet
         self.type = MessageType(int(self.packet.type))
 
@@ -45,3 +46,8 @@ class BmpPacket:
             return operator.attrgetter(item)(self.packet)
         else:
             return getattr(self, item)
+
+    # Print location of the packet to find easily in Wireshark
+    # F = Frame, P = Packet
+    def location_str(self) -> str:
+        return f"@ (F{self.frame + 1}:P{self.frame_sequence + 1}/{self.frame_bmp_count})"
