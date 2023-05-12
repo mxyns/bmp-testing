@@ -20,6 +20,7 @@ class MessageType(IntEnum):
     PeerDown = 2
     PeerUp = 3
     Initiation = 4
+    Termination = 5
 
 
 class PeerType(IntEnum):
