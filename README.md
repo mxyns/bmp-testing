@@ -33,16 +33,19 @@ to run the Python `unittest` module with user arguments
 
 ### Arguments
 
-| argument            | type             | description                  | example                                               |
-|---------------------|------------------|------------------------------|-------------------------------------------------------|
-| pcap                | positional, path | specify .pcap input file     | `python run_tests.py /path/to/pcap`                   |
-| `-t`<br/>`--tshark` | optional, path   | specify tshark executable    | `python run_tests.py -t /path/to/tshark /path/to/pcap |
-| `-p`<br/>`--port`   | optional, int    | specify bmp port for tshark  | `python run_tests.py -p 1790 /path/to/pcap`           |
-| `--`                |                  | pass arguments to `unittest` | `python run_tests.py <args> -- -k <expr>`             |
+| argument                   | type                | description                   | example                                                                        |
+|----------------------------|---------------------|-------------------------------|--------------------------------------------------------------------------------|
+| `-t`<br/>`--tshark`        | optional, path      | tshark executable             | `python run_tests.py -t /path/to/tshark /path/to/pcap`                         |
+| `-ta`<br/>`--tsharkargs`   | optional, N * str   | tshark arguments              | `python run_tests.py -ta "-d tcp.port==1790,bmp" "other arg" -- /path/to/pcap` |
+| `-p`<br/>`--port`          | optional, int       | bmp port for tshark           | `python run_tests.py -p 1790 /path/to/pcap`                                    |
+| -------------------------- | ------------------- | ----------------------------- | ---------------------------------------------------------------                |
+| `--`                       |                     | begin positional arguments    | `python run_tests.py <opt-args> -- <pos-args>`                                 |
+| pcap                       | positional, path    | .pcap input file              | `python run_tests.py <opt-args> -- /path/to/pcap`                              |
+| unittest_args              | positional, N * str | arguments for unittest        | `python run_tests.py <opt-args> -- <pcap> -k BMP`                              |
 
 ### Subset of tests
 
-`python run_tests.py <args> -- -k <expr>`
+Use the `-k <expr>` parameter in the `unittest_args` parameter ([Arguments](#arguments))
 
 `<expr>` can be anything that matches a module, file, test suite or test
 

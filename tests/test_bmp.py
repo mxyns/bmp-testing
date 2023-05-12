@@ -20,7 +20,8 @@ class BMP(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.file_path = common.PCAP_PATH
         cls.pcap = pyshark.FileCapture(common.PCAP_PATH, tshark_path=common.TSHARK_PATH,
-                                       decode_as={f"tcp.port=={common.BMP_PORT}": "bmp"})
+                                       decode_as={f"tcp.port=={common.BMP_PORT}": "bmp"},
+                                       custom_parameters=common.TSHARK_ARGS)
         print(f"Running TShark {cls.pcap._get_tshark_version()} from {cls.pcap._get_tshark_path()}")
         cls.bmp = list()
 
@@ -47,7 +48,7 @@ class BMP(unittest.TestCase):
     def test_indices(self) -> None:
         # check if list is going from 0 to len(lst) monotonically, incr of 1
         def _assert_monotone(lst: list):
-            self.assertEquals(len(set(lst)), len(lst))
+            self.assertEqual(len(set(lst)), len(lst))
             self.assertListEqual(list(range(len(lst))), lst)
 
         capture_sequences = list(map(lambda p: p.capture_sequence, self.bmp))

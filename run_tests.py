@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import sys
+import json
 
 DEFAULT_BMP_PORT = 12345
 
@@ -14,6 +15,8 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--port', type=int,
                         help="tcp port for BMP (overrides the user's currently set preference in Wireshark)",
                         default=DEFAULT_BMP_PORT)
+    parser.add_argument('-ta', '--tsharkargs', type=str,
+                        help="arguments for tshark", nargs='*')
     parser.add_argument('unittest_args', nargs='*')
 
     args = parser.parse_args()
@@ -21,11 +24,10 @@ if __name__ == '__main__':
     # Now set the sys.argv to the unittest_args (leaving sys.argv[0] alone)
     sys.argv[1:] = args.unittest_args
 
-    print(sys.argv)
-
     custom_env = {
         **os.environ,
         "TSHARK_PATH": getattr(args.tshark, "name", ""),
+        "TSHARK_ARGS": json.dumps(args.tsharkargs or []),
         "PCAP_PATH": getattr(args.pcap, "name", ""),
         "BMP_PORT": str(getattr(args, "port", DEFAULT_BMP_PORT))
     }
