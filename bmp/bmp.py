@@ -10,6 +10,9 @@ class IntEnum(Enum):
     def __eq__(self, other):
         return self.value == other
 
+    def __str__(self):
+        return f"{self.name} ({self.value})"
+
 
 class MessageType(IntEnum):
     RouteMonitoring = 0

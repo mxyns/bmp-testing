@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import pyshark
@@ -107,6 +108,7 @@ class BMP(unittest.TestCase):
         def _incr_stat(peer, stat_name: str):
             peer["stats"][stat_name] = peer["stats"].setdefault(stat_name, 0) + 1
 
+        print("====== TIMELINE ======")
         # play the bmp pcap
         for packet in self.bmp:
 
@@ -139,9 +141,21 @@ class BMP(unittest.TestCase):
                 not_up = peer_state != bmp.MessageType.PeerUp
                 _incr_stat(peer, f"{packet_type.name}_ignored" if not_up else packet_type.name)
 
-        # TODO pretty print the summary router-like
+        print("====== TIMELINE ======\n"
+              "====== SUMMARY PRETTY ======")
+
+        def _pretty_print_peer(peer_id: tuple[str, str, int], peer_data: dict[str, any]):
+            print(f"Peer: Type={peer_id[2]} IP={peer_id[0]} RD={peer_id[1]}")
+            print(json.dumps(peer_data, default=str, indent=4))
+
+        for peer_id, peer_data in peers.items():
+            _pretty_print_peer(peer_id, peer_data)
+
+        print("====== SUMMARY PRETTY ======\n"
+              "====== SUMMARY RAW ======")
         print(peers)
         print(vrfs)
+        print("====== SUMMARY RAW ======")
 
     # ensure that the peer type is never 0 when the peer RD is not zero and vice-versa
     def test_peer_type(self) -> None:
