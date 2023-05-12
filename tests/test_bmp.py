@@ -47,8 +47,8 @@ class BMP(unittest.TestCase):
     def test_indices(self) -> None:
         # check if list is going from 0 to len(lst) monotonically, incr of 1
         def _assert_monotone(lst: list):
-            assert len(set(lst)) == len(lst)
-            assert list(range(len(lst))) == lst
+            self.assertEquals(len(set(lst)), len(lst))
+            self.assertListEqual(list(range(len(lst))), lst)
 
         capture_sequences = list(map(lambda p: p.capture_sequence, self.bmp))
         _assert_monotone(capture_sequences)
@@ -72,7 +72,7 @@ class BMP(unittest.TestCase):
                         f"Version changed from {sessions[session_id][1]} to {bmp_version} on session {str(session_id)}")
                     fail = True
 
-        assert not fail
+        self.assertFalse(fail)
 
     # summarize peer up/down state and count ignored messages (received before peer up / after peer down)
     def test_peerup(self) -> None:
@@ -163,7 +163,7 @@ class BMP(unittest.TestCase):
                       f"post: {packet.packet.peer_flags_post_policy}")
                 fail = True
 
-        assert not fail
+        self.assertFalse(fail)
 
     # TODO summary of received message for each type of monitoring (in - loc - out) with prefix and peer address
 
