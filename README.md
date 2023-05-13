@@ -9,12 +9,13 @@ Collection of Python tests to run on a .pcap which checks aspects of a BMP imple
 - [x] Ensure pre-processing was safe : `test_indices`
 - [x] Version is always the same a session : `test_version`
 - [x] Ensure correct Peer Type and Peer Distinguisher : `test_peer_type`
+- [ ] Statistics Counters always going up
 
 ### Informative tests
 
 - [x] Summarize peer states, count duplicates : `test_peerup`
-- [ ] Summarize updates and withdraws for each monitoring type and prefix
-- [ ] (Final RIB state for each peer?)
+- [x] Summarize updates and withdraws for each monitoring type and prefix : `test_monitoring_type`
+- [x] Final RIB state for each peer : `test_monitoring_type`
 
 ## Dependencies
 

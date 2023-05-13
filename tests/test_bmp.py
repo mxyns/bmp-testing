@@ -81,25 +81,25 @@ class BMP(unittest.TestCase):
     def test_peerup(self) -> None:
 
         # peer stores
-        # peer ids as key are tuple of (IP, RD, Type)
+        # peer ids as key are dataclasses of (Type: bmp.PeerType, IP: str, RD: str) from module bmp
         # values are dicts with id, type, state, stats etc.
         peers: dict[
-            tuple[str, str, int],
+            bmp.PeerId,
             dict[str, any]
         ] = dict()
 
         vrfs: dict[
-            tuple[str, str, int],
+            bmp.PeerId,
             dict[str, any]
         ] = dict()
 
         # get a peer from one of the local peer stores
-        def _get_peer(peer_type: bmp.PeerType, peer_id):
-            store = vrfs if peer_type == bmp.PeerType.LocRibInstance else peers
+        def _get_peer(peer_id: bmp.PeerId):
+            store = vrfs if peer_id.peer_type == bmp.PeerType.LocRibInstance else peers
             return store.setdefault(peer_id, {
                 "id": peer_id,
-                "type": peer_type,
-                "type_name": peer_type.name,
+                "type": peer_id.peer_type,
+                "type_name": peer_id.peer_type.name,
                 "state": None,
                 "state_msgs": list(),
                 "stats": dict()
@@ -120,10 +120,8 @@ class BMP(unittest.TestCase):
             if packet_type in [bmp.MessageType.Initiation, bmp.MessageType.Termination]:
                 continue
 
-            peer_type = bmp.PeerType(int(packet.peer_type))
-            peer_ip = packet.peer_ip_addr if "peer_ip_addr" in packet.field_names else packet.peer_ipv6_addr
-            peer_id = (peer_ip, packet.peer_distinguisher, peer_type.value)
-            peer = _get_peer(peer_type, peer_id)
+            peer_id = bmp.PeerId.from_packet(packet=packet)
+            peer = _get_peer(peer_id)
             peer_state = peer["state"]
 
             # got a peer state message, update peer state
@@ -145,8 +143,8 @@ class BMP(unittest.TestCase):
         print("====== TIMELINE ======\n"
               "====== SUMMARY PRETTY ======")
 
-        def _pretty_print_peer(peer_id: tuple[str, str, int], peer_data: dict[str, any]):
-            print(f"Peer: Type={peer_id[2]} IP={peer_id[0]} RD={peer_id[1]}")
+        def _pretty_print_peer(peer_id: bmp.PeerId, peer_data: dict[str, any]):
+            print(f"Peer: Type={peer_id.peer_type} IP={peer_id.peer_ip} RD={peer_id.peer_rd}")
             print(json.dumps(peer_data, default=str, indent=4))
 
         for peer_id, peer_data in peers.items():
@@ -180,7 +178,132 @@ class BMP(unittest.TestCase):
 
         self.assertFalse(fail)
 
-    # TODO summary of received message for each type of monitoring (in - loc - out) with prefix and peer address
+    def test_monitoring_summary(self):
+
+        peers: dict[bmp.PeerId, dict[str, any]] = dict()
+
+        def _get_peer(peer_id: bmp.PeerId):
+            return peers.setdefault(peer_id, {
+                "id": peer_id,
+            } | {str(mon_type): dict() for mon_type in bmp.MonitoringType})
+
+        def _update_rib(rib: dict[str, dict[str, any]], packet: bmp.BmpPacket) -> None:
+            withdraw_len: int = int(packet.bgp_update_withdrawn_routes_length)
+            update_len: int = int(packet.bgp_update_path_attributes_length)
+
+            def _get_prefix(prefix: str, prefix_len: int, addpath_id: int, rd: str) -> dict[str, any]:
+                prefix = f"{prefix}/{prefix_len}, id={addpath_id}, rd={rd}"
+                return rib.setdefault(prefix, {
+                    # immutable
+                    "prefix": prefix,
+                    "prefix_len": prefix_len,
+                    "id": addpath_id,
+                    "rd": rd,
+                    # mutable
+                    "update_count": 0,
+                    "withdraw_count": 0,
+                    "duplicate_withdraw_count": 0,
+                    "last": None,  # 0 is withdrawn, 1 is updated
+                    "last_attr": None,  # current attributes if last is 1
+                    "timeline": list(),  # list of (capture_sequence, pdu_type) from packets affecting the prefix
+                })
+
+            # unsupported mixed packet
+            if withdraw_len != 0 and update_len != 0:
+                self.fail("Mixed update and withdraw in BGP PDU not supported!")
+
+            pdu_type: int  # -1 EoR, 0 Withdraw, 1 Update
+            prefix: str
+            prefix_len: int
+            prefix_id: int
+            prefix_rd: str
+
+            # packet is a EoR
+            if withdraw_len == 0 and update_len == 0:
+                pdu_type = -1
+                prefix = ""
+                prefix_len = 0
+                prefix_rd = ""
+                prefix_id = 0
+
+            # packet is a withdraw
+            elif withdraw_len > 0 and update_len == 0:
+                pdu_type = 0
+                prefix = packet.bgp_withdrawn_prefix
+                prefix_len = int(packet.bgp_prefix_length)
+                prefix_id = int(packet.bgp_nlri_path_id)
+                prefix_rd = packet.bgp_rd
+            # packet is an update
+            elif withdraw_len == 0 and update_len > 0:
+                if int(packet.bgp_update_path_attribute_type_code) != 15:  # MP_REACH
+                    pdu_type = 1
+                    prefix = packet.bgp_nlri_prefix or \
+                             packet.bgp_mp_reach_nlri_ipv6_prefix or \
+                             packet.bgp_mp_reach_nlri_ipv4_prefix
+
+                    self.assertIsNotNone(prefix)
+
+                    prefix_len = int(packet.bgp_prefix_length)
+                    prefix_id = int(packet.bgp_nlri_path_id or 0)
+                    prefix_rd = packet.bgp_rd or ""
+                else:  # MP_UNREACH
+                    prefix = packet.bgp_nlri_prefix or \
+                             packet.bgp_mp_unreach_nlri_ipv6_prefix or \
+                             packet.bgp_mp_unreach_nlri_ipv4_prefix
+
+                    if prefix is None:  # EoR
+                        pdu_type = -1
+                        prefix_len = 0
+                        prefix_id = 0
+                        prefix_rd = ""
+                    else:  # withdraw
+                        pdu_type = 0
+                        prefix_len = int(packet.bgp_prefix_length)
+                        prefix_rd = packet.bgp_rd
+                        prefix_id = int(packet.bgp_nlri_path_id or 0)
+            else:
+                self.fail("Should be unreachable!")
+                return
+
+            if pdu_type == -1:  # EoR
+                prefix_info = _get_prefix(prefix="EoR", prefix_len=0, addpath_id=0, rd="")
+                prefix_info["update_count"] += 1
+                prefix_info["timeline"] += [(packet.capture_sequence, pdu_type)]
+                return
+
+            prefix_info = _get_prefix(prefix=prefix,
+                                      prefix_len=prefix_len,
+                                      addpath_id=prefix_id,
+                                      rd=prefix_rd)
+            if pdu_type == 0:  # withdraw
+                prefix_info["duplicate_withdraw_count"] += 1 if prefix_info["last"] in [0, None] else 0
+                prefix_info["withdraw_count"] += 1
+                prefix_info["last"] = 0
+                prefix_info["last_attr"] = None
+
+            elif pdu_type == 1:  # update
+                prefix_info["update_count"] += 1
+                prefix_info["last"] = 1
+                prefix_info["last_attr"]: dict[str, any] = {
+                    k.replace("bgp_update_path_attribute_", ""): getattr(packet, k, None) for k in packet.field_names if
+                    k.startswith("bgp_update_path_attribute")
+                }
+
+            prefix_info["timeline"] += [(packet.capture_sequence, pdu_type)]
+
+        for packet in self.bmp:
+            if packet.type != bmp.MessageType.RouteMonitoring:
+                continue
+
+            peer_id = bmp.PeerId.from_packet(packet=packet)
+            mon_type = bmp.MonitoringType.from_packet(packet=packet)
+            peer = _get_peer(peer_id=peer_id)
+            rib = peer[str(mon_type)]
+            _update_rib(rib=rib, packet=packet)
+
+        print(json.dumps({str(k): v for k, v in peers.items()}, indent=2, default=str))
+
+    # TODO check statistics (correct type and count, counters always going up etc.)
 
     # print test name after running each
     def tearDown(self) -> None:
