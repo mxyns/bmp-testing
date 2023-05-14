@@ -178,6 +178,7 @@ class BMP(unittest.TestCase):
 
         self.assertFalse(fail)
 
+    # TODO move NLRI code to BmpPacket
     def test_monitoring_summary(self):
 
         peers: dict[bmp.PeerId, dict[str, any]] = dict()
@@ -243,7 +244,7 @@ class BMP(unittest.TestCase):
 
                     self.assertIsNotNone(prefix)
 
-                    prefix_len = int(packet.bgp_prefix_length)
+                    prefix_len = int(prefix.split("/")[-1])
                     prefix_id = int(packet.bgp_nlri_path_id or 0)
                     prefix_rd = packet.bgp_rd or ""
                 else:  # MP_UNREACH
@@ -258,7 +259,8 @@ class BMP(unittest.TestCase):
                         prefix_rd = ""
                     else:  # withdraw
                         pdu_type = 0
-                        prefix_len = int(packet.bgp_prefix_length)
+                        prefix = prefix.split("/")[0]
+                        prefix_len = int(prefix.split("/")[-1])
                         prefix_rd = packet.bgp_rd
                         prefix_id = int(packet.bgp_nlri_path_id or 0)
             else:
