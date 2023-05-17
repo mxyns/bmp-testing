@@ -61,6 +61,97 @@ class BmpPacket:
         return f"@ (F{self.frame + 1}:P{self.frame_sequence + 1}/{self.frame_bmp_count})"
 
 
+class BgpPduType(IntEnum):
+    EoR = -1
+    Withdraw = 0
+    Update = 1
+
+
+@dataclass()
+class Nlri:
+    prefix: str
+    prefix_len: int
+    prefix_id: int
+    prefix_rd: str
+
+    @classmethod
+    def from_packet(cls, packet: BmpPacket):
+        withdraw_len: int = int(packet.bgp_update_withdrawn_routes_length)
+        update_len: int = int(packet.bgp_update_path_attributes_length)
+
+        # unsupported mixed packet
+        if withdraw_len != 0 and update_len != 0:
+            raise ValueError("Mixed update and withdraw in BGP PDU not supported!")
+
+        # packet is a EoR
+        if withdraw_len == 0 and update_len == 0:
+            return Nlri(prefix="EoR", prefix_len=0, prefix_rd="", prefix_id=0), BgpPduType.EoR
+
+        # packet is a withdraw
+        elif withdraw_len > 0 and update_len == 0:
+
+            return Nlri(
+                prefix=packet.bgp_withdrawn_prefix,
+                prefix_len=int(packet.bgp_prefix_length),
+                prefix_id=int(packet.bgp_nlri_path_id),
+                prefix_rd=packet.bgp_rd,
+            ), BgpPduType.Withdraw
+
+        # packet is an update
+        elif withdraw_len == 0 and update_len > 0:
+            if int(type_code := packet.bgp_update_path_attribute_type_code) == 1:
+                return Nlri(
+                    prefix=packet.bgp_nlri_prefix,
+                    prefix_len=int(packet.bgp_prefix_length),
+                    prefix_rd=packet.bgp_rd,
+                    prefix_id=int(packet.bgp_nlri_path_id or 0),
+                ), BgpPduType.Update
+
+            elif int(type_code) == 14:  # MP_REACH
+                prefix = packet.bgp_nlri_prefix or \
+                         packet.bgp_mp_reach_nlri_ipv6_prefix or \
+                         packet.bgp_mp_reach_nlri_ipv4_prefix
+
+                prefix_len = int(packet.bgp_prefix_length or prefix.split("/")[-1])
+                prefix_id = int(packet.bgp_nlri_path_id or 0)
+                prefix_rd = packet.bgp_rd or ""
+
+                return Nlri(
+                    prefix=prefix,
+                    prefix_len=prefix_len,
+                    prefix_id=prefix_id,
+                    prefix_rd=prefix_rd
+                ), BgpPduType.Update
+
+            elif int(type_code) == 15:  # MP_UNREACH
+                prefix = packet.bgp_nlri_prefix or \
+                         packet.bgp_mp_unreach_nlri_ipv6_prefix or \
+                         packet.bgp_mp_unreach_nlri_ipv4_prefix
+
+                if prefix is None:  # EoR
+                    return Nlri(prefix="EoR", prefix_len=0, prefix_id=0, prefix_rd=""), BgpPduType.EoR
+
+                return Nlri(
+                    prefix=prefix.split("/")[0],
+                    prefix_len=int(packet.bgp_prefix_length or prefix.split("/")[-1]),
+                    prefix_rd=packet.bgp_rd,
+                    prefix_id=int(packet.bgp_nlri_path_id or 0),
+                ), BgpPduType.Withdraw
+            else:
+                raise ValueError("Type code not supported!")
+        else:
+            raise ValueError("Should be unreachable!")
+
+
+class BmpPacketRouteMonitoring(BmpPacket):
+    bgp_nlri: Nlri
+    bgp_pdu_type: BgpPduType
+
+    def __init__(self, capture_sequence: int, frame: int, frame_sequence: int, frame_bmp_count: int, packet: XmlLayer):
+        super().__init__(capture_sequence=capture_sequence, frame_sequence=frame_sequence, frame=frame,
+                         packet=packet, frame_bmp_count=frame_bmp_count)
+
+
 @dataclass(frozen=True, eq=True)
 class PeerId:
     peer_type: PeerType

@@ -5,7 +5,7 @@ import pyshark
 
 import tests.common as common
 from bmp import bmp
-from bmp.bmp import BmpPacket
+from bmp.bmp import BmpPacket, Nlri, BgpPduType
 
 
 class BMP(unittest.TestCase):
@@ -189,17 +189,15 @@ class BMP(unittest.TestCase):
             } | {str(mon_type): dict() for mon_type in bmp.MonitoringType})
 
         def _update_rib(rib: dict[str, dict[str, any]], packet: bmp.BmpPacket) -> None:
-            withdraw_len: int = int(packet.bgp_update_withdrawn_routes_length)
-            update_len: int = int(packet.bgp_update_path_attributes_length)
 
-            def _get_prefix(prefix: str, prefix_len: int, addpath_id: int, rd: str) -> dict[str, any]:
-                prefix = f"{prefix}/{prefix_len}, id={addpath_id}, rd={rd}"
+            def _get_prefix(nlri: Nlri) -> dict[str, any]:
+                prefix = f"{nlri.prefix}/{nlri.prefix_len}, id={nlri.prefix_id}, rd=n{nlri.prefix_rd}"
                 return rib.setdefault(prefix, {
                     # immutable
                     "prefix": prefix,
-                    "prefix_len": prefix_len,
-                    "id": addpath_id,
-                    "rd": rd,
+                    "prefix_len": nlri.prefix_len,
+                    "id": nlri.prefix_id,
+                    "rd": nlri.prefix_rd,
                     # mutable
                     "update_count": 0,
                     "withdraw_count": 0,
@@ -209,89 +207,29 @@ class BMP(unittest.TestCase):
                     "timeline": list(),  # list of (capture_sequence, pdu_type) from packets affecting the prefix
                 })
 
-            # unsupported mixed packet
-            if withdraw_len != 0 and update_len != 0:
-                self.fail("Mixed update and withdraw in BGP PDU not supported!")
-
-            pdu_type: int  # -1 EoR, 0 Withdraw, 1 Update
-            prefix: str
-            prefix_len: int
-            prefix_id: int
-            prefix_rd: str
-
-            # packet is a EoR
-            if withdraw_len == 0 and update_len == 0:
-                pdu_type = -1
-                prefix = ""
-                prefix_len = 0
-                prefix_rd = ""
-                prefix_id = 0
-
-            # packet is a withdraw
-            elif withdraw_len > 0 and update_len == 0:
-                pdu_type = 0
-                prefix = packet.bgp_withdrawn_prefix
-                prefix_len = int(packet.bgp_prefix_length)
-                prefix_id = int(packet.bgp_nlri_path_id)
-                prefix_rd = packet.bgp_rd
-            # packet is an update
-            elif withdraw_len == 0 and update_len > 0:
-                if int(packet.bgp_update_path_attribute_type_code) != 15:  # MP_REACH
-                    pdu_type = 1
-                    prefix = packet.bgp_nlri_prefix or \
-                             packet.bgp_mp_reach_nlri_ipv6_prefix or \
-                             packet.bgp_mp_reach_nlri_ipv4_prefix
-
-                    self.assertIsNotNone(prefix)
-
-                    prefix_len = int(prefix.split("/")[-1])
-                    prefix_id = int(packet.bgp_nlri_path_id or 0)
-                    prefix_rd = packet.bgp_rd or ""
-                else:  # MP_UNREACH
-                    prefix = packet.bgp_nlri_prefix or \
-                             packet.bgp_mp_unreach_nlri_ipv6_prefix or \
-                             packet.bgp_mp_unreach_nlri_ipv4_prefix
-
-                    if prefix is None:  # EoR
-                        pdu_type = -1
-                        prefix_len = 0
-                        prefix_id = 0
-                        prefix_rd = ""
-                    else:  # withdraw
-                        pdu_type = 0
-                        prefix = prefix.split("/")[0]
-                        prefix_len = int(prefix.split("/")[-1])
-                        prefix_rd = packet.bgp_rd
-                        prefix_id = int(packet.bgp_nlri_path_id or 0)
-            else:
-                self.fail("Should be unreachable!")
-                return
-
-            if pdu_type == -1:  # EoR
-                prefix_info = _get_prefix(prefix="EoR", prefix_len=0, addpath_id=0, rd="")
-                prefix_info["update_count"] += 1
-                prefix_info["timeline"] += [(packet.capture_sequence, pdu_type)]
-                return
-
-            prefix_info = _get_prefix(prefix=prefix,
-                                      prefix_len=prefix_len,
-                                      addpath_id=prefix_id,
-                                      rd=prefix_rd)
-            if pdu_type == 0:  # withdraw
-                prefix_info["duplicate_withdraw_count"] += 1 if prefix_info["last"] in [0, None] else 0
-                prefix_info["withdraw_count"] += 1
-                prefix_info["last"] = 0
-                prefix_info["last_attr"] = None
-
-            elif pdu_type == 1:  # update
-                prefix_info["update_count"] += 1
-                prefix_info["last"] = 1
-                prefix_info["last_attr"]: dict[str, any] = {
-                    k.replace("bgp_update_path_attribute_", ""): getattr(packet, k, None) for k in packet.field_names if
-                    k.startswith("bgp_update_path_attribute")
-                }
+            nlri, pdu_type = Nlri.from_packet(packet=packet)
+            prefix_info = _get_prefix(nlri=nlri)
 
             prefix_info["timeline"] += [(packet.capture_sequence, pdu_type)]
+
+            match pdu_type:
+                case BgpPduType.EoR:
+                    prefix_info["update_count"] += 1
+
+                case BgpPduType.Withdraw:
+                    prefix_info["duplicate_withdraw_count"] += 1 if prefix_info["last"] in [0, None] else 0
+                    prefix_info["withdraw_count"] += 1
+                    prefix_info["last"] = 0
+                    prefix_info["last_attr"] = None
+
+                case BgpPduType.Update:
+                    prefix_info["update_count"] += 1
+                    prefix_info["last"] = 1
+                    prefix_info["last_attr"]: dict[str, any] = {
+                        k.replace("bgp_update_path_attribute_", ""): getattr(packet, k, None) for k in
+                        packet.field_names if
+                        k.startswith("bgp_update_path_attribute")
+                    }
 
         for packet in self.bmp:
             if packet.type != bmp.MessageType.RouteMonitoring:
@@ -306,7 +244,7 @@ class BMP(unittest.TestCase):
         print(json.dumps({str(k): v for k, v in peers.items()}, indent=2, default=str))
 
     # TODO check statistics (correct type and count, counters always going up etc.)
-
+    # TODO check peer flags correspond to peer type (only one in loc-rib, etc)
     # print test name after running each
     def tearDown(self) -> None:
         common.print_test_header(self)
