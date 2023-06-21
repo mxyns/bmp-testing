@@ -3,7 +3,7 @@ import unittest
 import json
 
 BMP_PORT = os.environ.get("BMP_PORT") or 12345
-PCAP_PATH = os.environ.get("PCAP_PATH") or "~/frr-ribout-testing-20230511_1048.pcap"
+PCAP_PATH = os.environ.get("PCAP_PATH") or "~/frr-ribout-testing-20230517_1602.pcap"
 PCAP_PATH = PCAP_PATH if "~/" not in PCAP_PATH else os.path.expanduser(PCAP_PATH)
 
 TSHARK_PATH = os.environ.get("TSHARK_PATH") or "/usr/local/bin/"

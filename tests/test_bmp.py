@@ -1,4 +1,5 @@
 import json
+import types
 import unittest
 
 import pyshark
@@ -19,6 +20,7 @@ class BMP(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+
         cls.file_path = common.PCAP_PATH
         cls.pcap = pyshark.FileCapture(common.PCAP_PATH, tshark_path=common.TSHARK_PATH,
                                        decode_as={f"tcp.port=={common.BMP_PORT}": "bmp"},
@@ -77,6 +79,14 @@ class BMP(unittest.TestCase):
 
         self.assertFalse(fail)
 
+    def test_peerflags(self) -> None:
+
+        for packet in self.bmp:
+            if packet.peer_header is None:
+                continue
+
+            self.assertTrue(int(packet.peer_flags_reserved or packet.peer_flags_loc_rib_res) == 0)
+
     # summarize peer up/down state and count ignored messages (received before peer up / after peer down)
     def test_peerup(self) -> None:
 
@@ -116,8 +126,8 @@ class BMP(unittest.TestCase):
             # if a state message this is a new peer state
             packet_type = packet.type
 
-            # ignore initiation messages, has no per-peer header
-            if packet_type in [bmp.MessageType.Initiation, bmp.MessageType.Termination]:
+            # ignore messages with no per-peer header
+            if packet.peer_header is None:
                 continue
 
             peer_id = bmp.PeerId.from_packet(packet=packet)
@@ -178,8 +188,7 @@ class BMP(unittest.TestCase):
 
         self.assertFalse(fail)
 
-    # TODO move NLRI code to BmpPacket
-    def test_monitoring_summary(self):
+    def test_monitoring_summary(self) -> None:
 
         peers: dict[bmp.PeerId, dict[str, any]] = dict()
 
@@ -244,7 +253,7 @@ class BMP(unittest.TestCase):
         print(json.dumps({str(k): v for k, v in peers.items()}, indent=2, default=str))
 
     # TODO check statistics (correct type and count, counters always going up etc.)
-    # TODO check peer flags correspond to peer type (only one in loc-rib, etc)
+    # TODO record peer up RD/VRF_NAME and check that all other messages with the same tlv value has the same RD
     # print test name after running each
     def tearDown(self) -> None:
         common.print_test_header(self)
@@ -254,6 +263,5 @@ class BMP(unittest.TestCase):
     def tearDownClass(cls) -> None:
         print("==== TEST LOGS ====")
 
-
-if __name__ == '__main__':
-    unittest.main()
+    if __name__ == '__main__':
+        unittest.main()
