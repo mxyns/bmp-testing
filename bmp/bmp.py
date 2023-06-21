@@ -1,6 +1,8 @@
 import operator
 from dataclasses import dataclass
 from enum import Enum
+from types import DynamicClassAttribute
+
 from pyshark.packet.layers.xml_layer import XmlLayer
 
 
@@ -35,9 +37,70 @@ class PeerType(IntEnum):
     LocRibInstance = 3
 
 
-class BmpPacket:
+class StatisticsType(Enum):
+    Gauge = lambda p, n: True
+    Counter = lambda p, n: p <= n
 
+    @DynamicClassAttribute
+    def check(self):
+        return self.value
+
+
+class Statistics(IntEnum):
+    # From https://www.iana.org/assignments/bmp-parameters/bmp-parameters.xhtml#statistics-types
+    # Number of prefixes rejected by inbound policy 	[RFC7854]
+    AdjInRejectedPrefixes = ("stats_data_prefix_rej", StatisticsType.Counter, 0)
+    # Number of (known) duplicate prefix advertisements 	[RFC7854]
+    DuplicatePrefixesAdvertised = ("stats_data_prefix_dup", StatisticsType.Counter, 1)
+    # Number of (known) duplicate withdraws 	[RFC7854]
+    DuplicateWithdraws = ("stats_data_withdraw_dup", StatisticsType.Counter, 2)
+    # Number of updates invalidated due to CLUSTER_LIST loop 	[RFC7854]
+    InvalidUpdatesClusterListLoop = ("stats_data_cluster_loop", StatisticsType.Counter, 3)
+    # Number of updates invalidated due to AS_PATH loop 	[RFC7854]
+    InvalidUpdatesAsPathLoop = ("stats_data_as_loop", StatisticsType.Counter, 4)
+    # Number of updates invalidated due to ORIGINATOR_ID 	[RFC7854]
+    InvalidUpdatesOriginatorId = ("stats_data_inv_originator", StatisticsType.Counter, 5)
+    # Number of updates invalidated due to a loop found in AS_CONFED_SEQUENCE or AS_CONFED_SET 	[RFC7854]
+    InvalidUpdatesAsConfedLoop = ("stats_data_as_confed_loop", StatisticsType.Counter, 6)
+    # Number of routes in Adj-RIBs-In 	[RFC7854]
+    AdjInRouteCount = ("stats_data_routes_adj_rib_in", StatisticsType.Gauge, 7)
+    # Number of routes in Loc-RIB 	[RFC7854]
+    LocalRibRouteCount = ("stats_data_routes_loc_rib", StatisticsType.Gauge, 8)
+    # Number of routes in per-AFI/SAFI Adj-RIB-In 	[RFC7854]
+    AdjInRouteCountPerAfi = ("stats_data_routes_per_adj_rib_in", StatisticsType.Gauge, 9)
+    # Number of routes in per-AFI/SAFI Loc-RIB 	[RFC7854]
+    LocalRibRouteCountPerAfi = ("stats_data_routes_per_loc_rib", StatisticsType.Gauge, 10)
+    # Number of updates subjected to treat-as-withdraw 	[RFC7854]
+    UpdatesTreatedAsWithdrawCount = ("stats_data_update_treat", StatisticsType.Counter, 11)
+    # Number of prefixes subjected to treat-as-withdraw 	[RFC7854]
+    PrefixesTreatedAsWithdrawCount = ("stats_data_prefixes_treat", StatisticsType.Counter, 12)
+    # Number of duplicate update messages received 	[RFC7854]
+    DuplicateUpdateCount = ("stats_data_duplicate_update", StatisticsType.Counter, 13)
+    # Number of routes in pre-policy Adj-RIB-Out 	[RFC8671]
+    AdjOutPreRouteCount = ("stats_data_routes_pre_adj_rib_out", StatisticsType.Gauge, 14)
+    # Number of routes in post-policy Adj-RIB-Out 	[RFC8671]
+    AdjOutPostRouteCount = ("stats_data_routes_post_adj_rib_out", StatisticsType.Gauge, 15)
+    # Number of routes in per-AFI/SAFI pre-policy Adj-RIB-Out 	[RFC8671]
+    AdjOutPreRouteCountPerAfi = ("stats_data_routes_pre_per_adj_rib_out", StatisticsType.Gauge, 16)
+    # Number of routes in per-AFI/SAFI post-policy Adj-RIB-Out 	[RFC8671]
+    AdjOutPostRouteCountPerAfi = ("stats_data_routes_post_per_adj_rib_out", StatisticsType.Gauge, 17)
+
+    @DynamicClassAttribute
+    def value(self):
+        return self._value_[0]
+
+    @DynamicClassAttribute
+    def type(self):
+        return self._value_[1]
+
+    @DynamicClassAttribute
+    def iana(self):
+        return self._value_[2]
+
+
+class BmpPacket:
     def __init__(self, capture_sequence: int, frame: int, frame_sequence: int, frame_bmp_count: int, packet: XmlLayer):
+
         self.capture_sequence = capture_sequence
         self.frame = frame
         self.frame_sequence = frame_sequence

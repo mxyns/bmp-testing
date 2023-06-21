@@ -9,7 +9,7 @@ Collection of Python tests to run on a .pcap which checks aspects of a BMP imple
 - [x] Ensure pre-processing was safe : `test_indices`
 - [x] Version is always the same a session : `test_version`
 - [x] Ensure correct Peer Type and Peer Distinguisher : `test_peer_type`
-- [ ] Statistics Counters always going up
+- [x] Statistics Counters always going up : `test_stats`
 
 ### Informative tests
 

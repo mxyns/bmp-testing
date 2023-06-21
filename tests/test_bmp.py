@@ -1,5 +1,4 @@
 import json
-import types
 import unittest
 
 import pyshark
@@ -86,6 +85,34 @@ class BMP(unittest.TestCase):
                 continue
 
             self.assertTrue(int(packet.peer_flags_reserved or packet.peer_flags_loc_rib_res) == 0)
+
+    def test_stats(self) -> None:
+
+        for packet in self.bmp:
+            if packet.type != bmp.MessageType.StatisticsReport:
+                continue
+
+            peers: dict[
+                bmp.PeerId,
+                dict[str, (bmp.Statistics, int)]
+            ] = dict()
+
+            def _get_stats(peer_id: bmp.PeerId):
+                return peers.setdefault(peer_id, {
+                    stat.name: (stat, None) for stat in bmp.Statistics
+                })
+
+            peer_id = bmp.PeerId.from_packet(packet)
+            peer_stats = _get_stats(peer_id=peer_id)
+            for stat_name in [stat_name for stat_name in peer_stats if stat_name in packet.field_names]:
+                stat = peer_stats[stat_name][0]
+                previous = peer_stats[stat_name][1]
+                next = int(packet.__getattr__(stat_name))
+                if stat.type.check(previous, next):
+                    peer_stats[stat_name] = (stat, next)
+                else:
+                    self.fail(
+                        f"Stat {stat_name} went from {previous} to {next} which is forbidden by its type {stat.type}")
 
     # summarize peer up/down state and count ignored messages (received before peer up / after peer down)
     def test_peerup(self) -> None:
@@ -252,7 +279,31 @@ class BMP(unittest.TestCase):
 
         print(json.dumps({str(k): v for k, v in peers.items()}, indent=2, default=str))
 
-    # TODO check statistics (correct type and count, counters always going up etc.)
+    def test_vrf_table_name_tlv(self) -> None:
+
+        tlvs = set()
+        rds: dict[str, (str, BmpPacket)] = dict()
+
+        def _get_rd(rd: str, name: str, packet: BmpPacket) -> (str, BmpPacket):
+            return rds.setdefault(rd, (name, packet))
+
+        for packet in self.bmp:
+            rd = packet.peer_distinguisher
+            new = packet.peer_up_tlv_vrf_table_name
+
+            # skip messages that do not contain the tlv
+            if new is None:
+                continue
+
+            current_name, current_packet = _get_rd(rd=rd, name=new, packet=packet)
+
+            self.assertEqual(new, current_name,
+                             msg=f"RD {rd} changed name from {current_name}({current_packet}) to {new}({packet})")
+            tlvs.update(set([field for field in packet.field_names if "tlv" in field]))
+
+        print(rds)
+        print(tlvs)
+
     # TODO record peer up RD/VRF_NAME and check that all other messages with the same tlv value has the same RD
     # print test name after running each
     def tearDown(self) -> None:
